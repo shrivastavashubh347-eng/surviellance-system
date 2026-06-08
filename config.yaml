@@ -9,8 +9,11 @@ camera:
   source: 0
 
 detection:
-  # YOLOv8 model weights to use (nano is fastest; swap for yolov8s.pt etc.)
-  model: "yolov8n.pt"
+  # YOLOv8 model weights to use.
+  # yolov8n.pt = fastest but misses thin objects like knives
+  # yolov8s.pt = much better accuracy, still real-time on CPU
+  # yolov8m.pt = best accuracy (requires GPU for real-time)
+  model: "yolov8s.pt"
 
   # Classes to flag as threats (must match COCO class names exactly)
   threat_classes:
@@ -18,7 +21,12 @@ detection:
     - "scissors"
 
   # Minimum confidence to count as a detection (0-1)
-  confidence_threshold: 0.40
+  # Lowered to 0.25 — knives are thin objects; yolov8 scores them lower
+  confidence_threshold: 0.25
+
+  # Inference image size — larger = better for small/thin objects
+  # 640 is default; 960 helps catch knives at a distance (slower)
+  inference_imgsz: 640
 
   # Minimum time (seconds) between saving alerts for the same class
   alert_cooldown: 5

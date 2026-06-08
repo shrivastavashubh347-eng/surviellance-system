@@ -75,6 +75,12 @@ def api_alerts():
     })
 
 
+@app.route("/api/detections")
+def api_detections():
+    """Raw detections across all classes — useful for tuning confidence threshold."""
+    return jsonify(detector.get_raw_detections())
+
+
 @app.route("/api/control", methods=["POST"])
 def api_control():
     action = request.json.get("action", "")

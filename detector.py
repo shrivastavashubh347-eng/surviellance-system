@@ -98,6 +98,13 @@ class ThreatDetector:
         self.threat_classes: set[str] = set(self.cfg["detection"]["threat_classes"])
         self.conf_threshold: float = float(self.cfg["detection"]["confidence_threshold"])
         self.alert_cooldown: float = float(self.cfg["detection"]["alert_cooldown"])
+        self.inference_imgsz: int = int(self.cfg["detection"].get("inference_imgsz", 640))
+
+        # CLAHE for contrast enhancement (helps detect low-contrast knives)
+        self._clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+
+        # Raw detection log for debug panel (last 50 unique class sightings)
+        self._raw_detections: list[dict] = []
 
         logging.info(
             "Threat detector ready. Watching for: %s (conf ≥ %.2f)",
@@ -146,6 +153,11 @@ class ThreatDetector:
     def is_running(self) -> bool:
         return self._running
 
+    def get_raw_detections(self) -> list[dict]:
+        """Return last seen detections across ALL classes (for debug panel)."""
+        with self._lock:
+            return list(self._raw_detections)
+
     # ── internal capture + inference loop ────────────────────
     def _capture_loop(self) -> None:
         source = self.cfg["camera"]["source"]
@@ -182,8 +194,23 @@ class ThreatDetector:
         logging.info("Camera released.")
 
     # ── frame processing ──────────────────────────────────────
+    def _preprocess(self, frame: np.ndarray) -> np.ndarray:
+        """Apply CLAHE contrast enhancement to improve detection of thin objects."""
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        l_eq = self._clahe.apply(l)
+        lab_eq = cv2.merge([l_eq, a, b])
+        return cv2.cvtColor(lab_eq, cv2.COLOR_LAB2BGR)
+
     def _process_frame(self, frame: np.ndarray) -> np.ndarray:
-        results = self.model(frame, conf=self.conf_threshold, verbose=False)
+        # Preprocess for better knife/thin-object visibility
+        enhanced = self._preprocess(frame)
+        results = self.model(
+            enhanced,
+            conf=self.conf_threshold,
+            imgsz=self.inference_imgsz,
+            verbose=False,
+        )
         annotated = frame.copy()
         now = time.time()
         threats_in_frame: list[dict] = []
@@ -199,7 +226,7 @@ class ThreatDetector:
                 if cls_name in self.threat_classes:
                     # Red box + label
                     cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                    label = f"⚠ {cls_name.upper()} {conf:.0%}"
+                    label = f"! {cls_name.upper()} {conf:.0%}"
                     (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
                     cv2.rectangle(annotated, (x1, y1 - lh - 10), (x1 + lw + 4, y1), (0, 0, 255), -1)
                     cv2.putText(annotated, label, (x1 + 2, y1 - 4),
@@ -213,6 +240,17 @@ class ThreatDetector:
                     label = f"{cls_name} {conf:.0%}"
                     cv2.putText(annotated, label, (x1, y1 - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 0), 2)
+
+                # Track all raw detections for debug panel
+                raw_record = {
+                    "class": cls_name,
+                    "confidence": round(conf, 3),
+                    "is_threat": cls_name in self.threat_classes,
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                }
+                with self._lock:
+                    self._raw_detections.insert(0, raw_record)
+                    self._raw_detections = self._raw_detections[:50]
 
         # Overlay HUD
         ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")

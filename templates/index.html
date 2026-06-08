@@ -446,6 +446,44 @@
     .toast-title { font-weight: 700; font-size: 0.9rem; color: var(--accent-red); }
     .toast-body  { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
 
+    /* ── Debug Panel ─────────────────────────────────────────── */
+    .debug-card { grid-column: 1; }
+    .debug-list {
+      padding: 12px; display: flex; flex-direction: column; gap: 6px;
+      max-height: 220px; overflow-y: auto;
+    }
+    .debug-list::-webkit-scrollbar { width: 4px; }
+    .debug-list::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 2px; }
+    .debug-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 10px;
+      background: var(--bg-surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      transition: border-color 0.2s;
+    }
+    .debug-row.threat { border-color: rgba(255,59,92,0.35); background: rgba(255,59,92,0.06); }
+    .debug-cls {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600; min-width: 90px;
+    }
+    .debug-row.threat .debug-cls { color: var(--accent-red); }
+    .debug-bar-wrap { flex: 1; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+    .debug-bar {
+      height: 100%; border-radius: 3px;
+      background: var(--accent-blue);
+      transition: width 0.3s ease;
+    }
+    .debug-row.threat .debug-bar { background: var(--accent-red); }
+    .debug-pct {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: var(--text-secondary);
+      min-width: 36px; text-align: right;
+    }
+    .debug-time { font-size: 0.7rem; color: var(--text-muted); min-width: 54px; text-align: right; }
+    .debug-empty { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px; }
+
     /* ── Responsive ─────────────────────────────────────────── */
     @media (max-width: 1024px) {
       .main-grid {
@@ -454,6 +492,7 @@
       }
       .side-panel { grid-column: 1; grid-row: auto; }
       .stats-row  { grid-template-columns: repeat(2, 1fr); }
+      .debug-card { grid-column: 1; }
     }
   </style>
 </head>
@@ -567,6 +606,17 @@
       <div class="stat-label">⏱ Uptime</div>
       <div class="stat-value" id="stat-uptime">00:00</div>
       <div class="stat-trend">hours : minutes</div>
+    </div>
+  </div>
+
+  <!-- Live Debug Panel -->
+  <div class="card debug-card">
+    <div class="card-header">
+      <div class="card-title">🔬 Live Detections — All Classes</div>
+      <span style="font-size:0.75rem;color:var(--text-muted)">model sees everything ≥ conf threshold</span>
+    </div>
+    <div class="debug-list" id="debug-list">
+      <div class="debug-empty">Waiting for detections…</div>
     </div>
   </div>
 
@@ -712,11 +762,40 @@
     setTimeout(() => toast.remove(), 5000);
   }
 
+  // ── Debug panel ────────────────────────────────────────────
+  function pollDetections() {
+    fetch('/api/detections')
+      .then(r => r.json())
+      .then(data => {
+        const list = document.getElementById('debug-list');
+        if (!data.length) {
+          list.innerHTML = '<div class="debug-empty">No detections yet — point camera at objects</div>';
+          return;
+        }
+        list.innerHTML = '';
+        data.slice(0, 20).forEach(d => {
+          const row = document.createElement('div');
+          row.className = 'debug-row' + (d.is_threat ? ' threat' : '');
+          const pct = Math.round(d.confidence * 100);
+          row.innerHTML = `
+            <span class="debug-cls">${d.class}</span>
+            <div class="debug-bar-wrap"><div class="debug-bar" style="width:${pct}%"></div></div>
+            <span class="debug-pct">${pct}%</span>
+            <span class="debug-time">${d.time}</span>
+          `;
+          list.appendChild(row);
+        });
+      })
+      .catch(() => {});
+  }
+
   // ── Init ───────────────────────────────────────────────────
   pollStatus();
   pollAlerts();
+  pollDetections();
   setInterval(pollStatus, 2000);
   setInterval(pollAlerts, 3000);
+  setInterval(pollDetections, 1500);
 </script>
 
 </body>
