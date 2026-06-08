@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThreatVision – Live Detection Dashboard</title>
+  <meta name="description" content="Real-time AI-powered threat detection dashboard with YOLOv8 object recognition and live camera feed." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design Tokens ─────────────────────────────────────── */
+    :root {
+      --bg-base:      #080b10;
+      --bg-card:      #0d1117;
+      --bg-surface:   #161b22;
+      --bg-elevated:  #1c2330;
+      --border:       rgba(255,255,255,0.07);
+      --border-glow:  rgba(99,179,237,0.25);
+
+      --accent-blue:  #3b9eff;
+      --accent-cyan:  #00d4ff;
+      --accent-red:   #ff3b5c;
+      --accent-amber: #ffb23f;
+      --accent-green: #22d3a0;
+
+      --text-primary:   #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted:     #484f58;
+
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.5);
+      --shadow-glow-red: 0 0 24px rgba(255,59,92,0.35);
+      --shadow-glow-blue: 0 0 24px rgba(59,158,255,0.25);
+    }
+
+    /* ── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle grid overlay on body */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59,158,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,158,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8,11,16,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent-red), #ff6b35);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 16px rgba(255,59,92,0.5);
+      animation: pulse-logo 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-logo {
+      0%,100% { box-shadow: 0 0 16px rgba(255,59,92,0.5); }
+      50%      { box-shadow: 0 0 28px rgba(255,59,92,0.8); }
+    }
+
+    .logo-text { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.5px; }
+    .logo-text span { color: var(--accent-red); }
+
+    .header-right { display: flex; align-items: center; gap: 16px; }
+
+    .status-badge {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8rem; font-weight: 600;
+      border: 1px solid;
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.online {
+      background: rgba(34,211,160,0.1);
+      border-color: rgba(34,211,160,0.4);
+      color: var(--accent-green);
+    }
+    .status-badge.offline {
+      background: rgba(255,59,92,0.1);
+      border-color: rgba(255,59,92,0.4);
+      color: var(--accent-red);
+    }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── Layout ────────────────────────────────────────────── */
+    .main-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      grid-template-rows: auto 1fr;
+      gap: 20px;
+      padding: 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.3s ease;
+    }
+
+    .card:hover { border-color: var(--border-glow); }
+
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+
+    .card-title {
+      font-size: 0.85rem; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-secondary);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Live Feed ──────────────────────────────────────────── */
+    .feed-card { grid-column: 1; }
+
+    .feed-wrapper {
+      position: relative;
+      background: #000;
+      aspect-ratio: 16/9;
+      overflow: hidden;
+    }
+
+    #live-feed {
+      width: 100%; height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Scanline overlay */
+    .feed-wrapper::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.07) 2px,
+        rgba(0,0,0,0.07) 4px
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* Corner brackets */
+    .feed-corners { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+    .feed-corners::before, .feed-corners::after,
+    .feed-corners span::before, .feed-corners span::after {
+      content: ''; position: absolute;
+      width: 24px; height: 24px;
+      border-color: var(--accent-cyan);
+      border-style: solid;
+      border-width: 0;
+    }
+    .feed-corners::before  { top:12px; left:12px;  border-top-width:2px;    border-left-width:2px; }
+    .feed-corners::after   { top:12px; right:12px; border-top-width:2px;    border-right-width:2px; }
+    .feed-corners span::before { bottom:12px; left:12px;  border-bottom-width:2px; border-left-width:2px; }
+    .feed-corners span::after  { bottom:12px; right:12px; border-bottom-width:2px; border-right-width:2px; }
+
+    /* REC badge */
+    .rec-badge {
+      position: absolute; top: 16px; right: 16px; z-index: 5;
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,59,92,0.4);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.75rem; font-weight: 700;
+      color: var(--accent-red);
+      letter-spacing: 0.1em;
+    }
+
+    /* Threat flash overlay */
+    #threat-overlay {
+      position: absolute; inset: 0; z-index: 4;
+      border: 3px solid var(--accent-red);
+      opacity: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 60px rgba(255,59,92,0.3);
+      transition: opacity 0.1s;
+    }
+    #threat-overlay.active { opacity: 1; }
+
+    /* ── Stats Row ──────────────────────────────────────────── */
+    .stats-row {
+      grid-column: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 8px;
+      transition: all 0.3s ease;
+      box-shadow: var(--shadow-card);
+    }
+
+    .stat-card:hover { transform: translateY(-2px); border-color: var(--border-glow); }
+
+    .stat-label {
+      font-size: 0.75rem; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem; font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-card.threats .stat-value { color: var(--accent-red); }
+    .stat-card.frames  .stat-value { color: var(--accent-blue); }
+    .stat-card.alerts  .stat-value { color: var(--accent-amber); }
+    .stat-card.uptime  .stat-value { color: var(--accent-green); }
+
+    .stat-trend {
+      font-size: 0.72rem; color: var(--text-muted);
+    }
+
+    /* ── Side Panel ─────────────────────────────────────────── */
+    .side-panel {
+      grid-column: 2;
+      grid-row: 1 / 3;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* Controls */
+    .controls { display: flex; gap: 10px; padding: 16px 20px; }
+
+    .btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none; border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all 0.2s ease;
+      letter-spacing: 0.02em;
+    }
+
+    .btn-start {
+      background: linear-gradient(135deg, #22d3a0, #16b085);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(34,211,160,0.3);
+    }
+    .btn-start:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(34,211,160,0.45); }
+    .btn-start:active { transform: translateY(0); }
+
+    .btn-stop {
+      background: linear-gradient(135deg, #ff3b5c, #c0392b);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(255,59,92,0.3);
+    }
+    .btn-stop:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,59,92,0.45); }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+    /* Threat Classes */
+    .threat-classes { padding: 0 20px 20px; }
+    .class-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px;
+      background: rgba(255,59,92,0.12);
+      border: 1px solid rgba(255,59,92,0.3);
+      border-radius: 999px;
+      font-size: 0.8rem; font-weight: 600;
+      color: var(--accent-red);
+    }
+
+    /* Alert Log */
+    .alert-log-card { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .alert-list {
+      flex: 1; overflow-y: auto; padding: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      max-height: 420px;
+    }
+
+    .alert-list::-webkit-scrollbar { width: 4px; }
+    .alert-list::-webkit-scrollbar-track { background: transparent; }
+    .alert-list::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 2px; }
+
+    .alert-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: all 0.25s ease;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .alert-item:hover { border-color: rgba(255,59,92,0.4); background: var(--bg-elevated); }
+
+    .alert-item.new { animation: slide-in 0.4s ease; }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .alert-thumb {
+      width: 52px; height: 36px;
+      border-radius: 4px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg-elevated);
+    }
+
+    .alert-info { flex: 1; min-width: 0; }
+
+    .alert-class {
+      font-size: 0.8rem; font-weight: 700;
+      color: var(--accent-red);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    .alert-meta {
+      font-size: 0.72rem; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .alert-conf {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem; font-weight: 600;
+      color: var(--accent-amber);
+      flex-shrink: 0;
+    }
+
+    .empty-state {
+      text-align: center; color: var(--text-muted);
+      font-size: 0.85rem; padding: 40px 20px;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+
+    .empty-icon { font-size: 2.5rem; opacity: 0.4; }
+
+    /* Config info */
+    .config-info { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .config-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.8rem;
+    }
+    .config-key { color: var(--text-secondary); }
+    .config-val {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-cyan); font-size: 0.78rem;
+      background: rgba(0,212,255,0.08);
+      padding: 2px 8px; border-radius: 4px;
+    }
+
+    /* ── Alert Toast ───────────────────────────────────────── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      z-index: 9999;
+      display: flex; flex-direction: column; gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg-elevated);
+      border: 1px solid rgba(255,59,92,0.5);
+      border-left: 4px solid var(--accent-red);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      min-width: 280px;
+      box-shadow: var(--shadow-glow-red);
+      animation: toast-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: auto;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(60px) scale(0.9); }
+      to   { opacity: 1; transform: translateX(0) scale(1); }
+    }
+
+    .toast-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .toast-title { font-weight: 700; font-size: 0.9rem; color: var(--accent-red); }
+    .toast-body  { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+      .side-panel { grid-column: 1; grid-row: auto; }
+      .stats-row  { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🛡</div>
+    <div class="logo-text">Threat<span>Vision</span></div>
+  </div>
+  <div class="header-right">
+    <div id="status-badge" class="status-badge offline">
+      <div class="dot"></div>
+      <span id="status-text">Offline</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Main Grid ────────────────────────────────────────────── -->
+<div class="main-grid">
+
+  <!-- Live Feed -->
+  <div class="card feed-card">
+    <div class="card-header">
+      <div class="card-title">📹 Live Camera Feed</div>
+      <div class="rec-badge"><div class="dot"></div> REC</div>
+    </div>
+    <div class="feed-wrapper">
+      <img id="live-feed" src="/video_feed" alt="Live camera feed" />
+      <div class="feed-corners"><span></span></div>
+      <div id="threat-overlay"></div>
+    </div>
+  </div>
+
+  <!-- Side Panel -->
+  <div class="side-panel">
+
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">⚙ Controls</div>
+      </div>
+      <div class="controls">
+        <button id="btn-start" class="btn btn-start" onclick="controlDetector('start')">
+          ▶ Start
+        </button>
+        <button id="btn-stop" class="btn btn-stop" onclick="controlDetector('stop')">
+          ⬛ Stop
+        </button>
+      </div>
+      <div class="threat-classes">
+        <div class="card-title" style="margin-bottom:10px">🎯 Monitored Threats</div>
+        <div class="class-pills" id="threat-pills"></div>
+      </div>
+      <div class="config-info">
+        <div class="config-row">
+          <span class="config-key">Camera Source</span>
+          <span class="config-val" id="cfg-source">—</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Model</span>
+          <span class="config-val" id="cfg-model">—</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Min Confidence</span>
+          <span class="config-val" id="cfg-conf">—</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Alert Cooldown</span>
+          <span class="config-val" id="cfg-cooldown">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Log -->
+    <div class="card alert-log-card">
+      <div class="card-header">
+        <div class="card-title">🚨 Alert Log</div>
+        <span id="alert-count" style="font-size:0.78rem;color:var(--text-muted)">0 events</span>
+      </div>
+      <div class="alert-list" id="alert-list">
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div>No threats detected yet</div>
+          <div style="font-size:0.72rem">Monitoring for knives and scissors</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /side-panel -->
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card threats">
+      <div class="stat-label">⚠ Threats Found</div>
+      <div class="stat-value" id="stat-threats">0</div>
+      <div class="stat-trend">total threat detections</div>
+    </div>
+    <div class="stat-card frames">
+      <div class="stat-label">🖼 Frames Processed</div>
+      <div class="stat-value" id="stat-frames">0</div>
+      <div class="stat-trend">since detector started</div>
+    </div>
+    <div class="stat-card alerts">
+      <div class="stat-label">💾 Alerts Saved</div>
+      <div class="stat-value" id="stat-alerts-saved">0</div>
+      <div class="stat-trend">screenshots on disk</div>
+    </div>
+    <div class="stat-card uptime">
+      <div class="stat-label">⏱ Uptime</div>
+      <div class="stat-value" id="stat-uptime">00:00</div>
+      <div class="stat-trend">hours : minutes</div>
+    </div>
+  </div>
+
+</div><!-- /main-grid -->
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script>
+  // ── Config ─────────────────────────────────────────────────
+  const CFG = {{ config | tojson }};
+
+  // Populate config display
+  document.getElementById('cfg-source').textContent   = String(CFG.camera.source);
+  document.getElementById('cfg-model').textContent    = CFG.detection.model;
+  document.getElementById('cfg-conf').textContent     = (CFG.detection.confidence_threshold * 100).toFixed(0) + '%';
+  document.getElementById('cfg-cooldown').textContent = CFG.detection.alert_cooldown + 's';
+
+  // Threat pills
+  const pillsEl = document.getElementById('threat-pills');
+  CFG.detection.threat_classes.forEach(cls => {
+    const p = document.createElement('div');
+    p.className = 'pill';
+    p.textContent = '⚠ ' + cls.toUpperCase();
+    pillsEl.appendChild(p);
+  });
+
+  // ── State ──────────────────────────────────────────────────
+  let knownAlertCount = 0;
+  let lastThreatCount = 0;
+
+  // ── Polling ─────────────────────────────────────────────────
+  function pollStatus() {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(data => {
+        // Status badge
+        const badge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+        if (data.is_running) {
+          badge.className = 'status-badge online';
+          statusText.textContent = 'Live';
+        } else {
+          badge.className = 'status-badge offline';
+          statusText.textContent = 'Offline';
+        }
+
+        // Stats
+        document.getElementById('stat-threats').textContent     = data.threats_detected || 0;
+        document.getElementById('stat-frames').textContent      = (data.frames_processed || 0).toLocaleString();
+        document.getElementById('stat-alerts-saved').textContent = data.alerts_saved || 0;
+
+        // Uptime
+        const sec = data.uptime_seconds || 0;
+        const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+        document.getElementById('stat-uptime').textContent = h + ':' + m;
+
+        // Threat overlay flash
+        if (data.threats_detected > lastThreatCount) {
+          flashThreat();
+        }
+        lastThreatCount = data.threats_detected || 0;
+      })
+      .catch(() => {});
+  }
+
+  function pollAlerts() {
+    fetch('/api/alerts?per_page=30')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('alert-count').textContent = data.total + ' event' + (data.total !== 1 ? 's' : '');
+        renderAlerts(data.alerts, data.total);
+      })
+      .catch(() => {});
+  }
+
+  function renderAlerts(alerts, total) {
+    const list = document.getElementById('alert-list');
+    if (alerts.length === 0) return;
+
+    // Check for new alerts
+    const isNew = total > knownAlertCount;
+    if (isNew && knownAlertCount > 0) {
+      // Show web toast for newest alert
+      showToast(alerts[0]);
+    }
+    knownAlertCount = total;
+
+    list.innerHTML = '';
+    alerts.forEach((a, idx) => {
+      const item = document.createElement('a');
+      item.className = 'alert-item' + (idx === 0 && isNew ? ' new' : '');
+      item.href = '/alerts/' + a.screenshot;
+      item.target = '_blank';
+
+      const conf = Math.round(a.confidence * 100);
+      const ts = new Date(a.timestamp).toLocaleTimeString();
+
+      item.innerHTML = `
+        <img class="alert-thumb" src="/alerts/${a.screenshot}" alt="${a.class}" 
+             onerror="this.style.display='none'"/>
+        <div class="alert-info">
+          <div class="alert-class">⚠ ${a.class}</div>
+          <div class="alert-meta">${ts} · ${a.screenshot.substring(0, 24)}…</div>
+        </div>
+        <div class="alert-conf">${conf}%</div>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  // ── UI Actions ──────────────────────────────────────────────
+  function controlDetector(action) {
+    fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+    .then(r => r.json())
+    .then(() => pollStatus())
+    .catch(() => {});
+  }
+
+  function flashThreat() {
+    const overlay = document.getElementById('threat-overlay');
+    overlay.classList.add('active');
+    setTimeout(() => overlay.classList.remove('active'), 600);
+  }
+
+  function showToast(alert) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+      <div class="toast-icon">🚨</div>
+      <div>
+        <div class="toast-title">THREAT DETECTED: ${alert.class.toUpperCase()}</div>
+        <div class="toast-body">Confidence: ${Math.round(alert.confidence * 100)}% · ${new Date(alert.timestamp).toLocaleTimeString()}</div>
+      </div>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  }
+
+  // ── Init ───────────────────────────────────────────────────
+  pollStatus();
+  pollAlerts();
+  setInterval(pollStatus, 2000);
+  setInterval(pollAlerts, 3000);
+</script>
+
+</body>
+</html>

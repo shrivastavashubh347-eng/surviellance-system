@@ -1,0 +1,5 @@
+timestamp,class,confidence,screenshot
+2026-06-08T22:50:22,scissors,0.554,alert_scissors_20260608_225022_033695.jpg
+2026-06-08T22:50:54,knife,0.53,alert_knife_20260608_225054_717243.jpg
+2026-06-08T22:51:06,scissors,0.601,alert_scissors_20260608_225106_486887.jpg
+2026-06-08T22:52:26,scissors,0.437,alert_scissors_20260608_225226_984574.jpg

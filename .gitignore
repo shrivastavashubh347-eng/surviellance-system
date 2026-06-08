@@ -1,0 +1,49 @@
+# ── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ──────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── YOLOv8 model weights (large binaries) ─────
+*.pt
+*.onnx
+*.engine
+*.torchscript
+
+# ── Alert screenshots & logs ──────────────────
+alerts/*.jpg
+alerts/*.jpeg
+alerts/*.png
+# Keep the alerts/ directory structure but not its contents
+!alerts/.gitkeep
+
+# ── IDE / Editor ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# ── Ultralytics cache ─────────────────────────
+runs/
+ultralytics/
+
+# ── Environment files ─────────────────────────
+.env
+*.env
+
+# ── Logs ──────────────────────────────────────
+*.log

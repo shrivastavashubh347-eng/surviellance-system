@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────
+#  Threat Detection System – Configuration File
+# ─────────────────────────────────────────────
+
+camera:
+  # USB camera index (0 = default first camera).
+  # Change to a RTSP URL string for IP cameras, e.g.:
+  #   source: "rtsp://user:pass@192.168.1.100:554/stream"
+  source: 0
+
+detection:
+  # YOLOv8 model weights to use (nano is fastest; swap for yolov8s.pt etc.)
+  model: "yolov8n.pt"
+
+  # Classes to flag as threats (must match COCO class names exactly)
+  threat_classes:
+    - "knife"
+    - "scissors"
+
+  # Minimum confidence to count as a detection (0-1)
+  confidence_threshold: 0.40
+
+  # Minimum time (seconds) between saving alerts for the same class
+  alert_cooldown: 5
+
+alerts:
+  # Folder where timestamped screenshots are saved (relative to project root)
+  output_dir: "alerts"
+
+server:
+  host: "127.0.0.1"
+  port: 5000
+  # Set to true to allow access from other machines on the network
+  debug: false
