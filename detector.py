@@ -528,7 +528,7 @@ class ThreatDetector:
         record = {
             "timestamp": datetime.now().isoformat(timespec="seconds"),
             "class": f"TARGET ({target_name})",
-            "confidence": round(confidence, 3),
+            "confidence": round(float(confidence), 3),
             "screenshot": filename,
         }
         with self._lock:
