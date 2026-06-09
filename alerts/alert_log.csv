@@ -7,3 +7,5 @@ timestamp,class,confidence,screenshot
 2026-06-08T23:15:23,knife,0.301,alert_knife_20260608_231523_835119.jpg
 2026-06-09T08:56:52,knife,0.355,alert_knife_20260609_085652_216410.jpg
 2026-06-09T08:56:57,knife,0.468,alert_knife_20260609_085657_413874.jpg
+2026-06-09T12:48:36,knife,0.294,alert_knife_20260609_124836_745648.jpg
+2026-06-09T12:48:36,COMBINED (knife + 1 face(s)),0.294,alert_COMBINED_knife_1face_20260609_124836_805871.jpg

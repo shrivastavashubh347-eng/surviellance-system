@@ -144,6 +144,7 @@ class ThreatDetector:
         self._last_faces: list[dict] = []   # cached result from last face-detection frame
         self._stats["faces_detected"] = 0
         self._last_combined_alert: float = 0.0
+        self.target_alert_cooldown = float(self.cfg.get("target_recognition", {}).get("alert_cooldown", 5))
 
         logging.info(
             "Threat detector ready. Watching for: %s (conf >= %.2f)",
@@ -248,6 +249,12 @@ class ThreatDetector:
 
     def is_privacy_blur_enabled(self) -> bool:
         return self._face_engine.privacy_blur
+
+    def get_target_names(self) -> list[str]:
+        return self._face_engine.get_target_names()
+
+    def reload_target_faces(self) -> None:
+        self._face_engine.load_target_faces()
 
     def list_video_files(self) -> list[dict]:
         """Return video files available in the /videos folder."""
@@ -438,6 +445,16 @@ class ThreatDetector:
             cv2.putText(annotated, face_txt,
                         (annotated.shape[1] - 180, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 180, 0), 2)
+                        
+            # Check for target faces
+            for face in self._last_faces:
+                tname = face.get("target_name")
+                if tname:
+                    key = f"target_{tname}"
+                    last = self._last_alert_time.get(key, 0)
+                    if now - last >= self.target_alert_cooldown:
+                        self._last_alert_time[key] = now
+                        self._save_target_alert(annotated, tname, face["confidence"])
 
         # ── HUD overlay ───────────────────────────────────────
         ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
@@ -497,6 +514,37 @@ class ThreatDetector:
             args=(
                 f"Threat Detected: {threat['class'].upper()}",
                 f"Confidence: {threat['confidence']:.0%}\nSaved: {filename}",
+            ),
+            daemon=True,
+        ).start()
+
+    def _save_target_alert(self, frame: np.ndarray, target_name: str, confidence: float) -> None:
+        """Save a screenshot when a recognized target face is detected."""
+        ts_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"target_{target_name}_{ts_str}.jpg"
+        filepath = self.alerts_dir / filename
+        cv2.imwrite(str(filepath), frame)
+
+        record = {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "class": f"TARGET ({target_name})",
+            "confidence": round(confidence, 3),
+            "screenshot": filename,
+        }
+        with self._lock:
+            self._alert_log.insert(0, record)
+            self._stats["alerts_saved"] += 1
+
+        with open(self._csv_path, "a", newline="") as f:
+            csv.DictWriter(f, fieldnames=list(record.keys())).writerow(record)
+
+        logging.info("Target recognized: %s", filename)
+
+        threading.Thread(
+            target=_notify,
+            args=(
+                f"Target Found: {target_name.upper()}",
+                f"Saved: {filename}",
             ),
             daemon=True,
         ).start()

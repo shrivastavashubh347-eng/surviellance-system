@@ -58,6 +58,14 @@ detection:
   # Minimum time (seconds) between saving alerts for the same class
   alert_cooldown: 5
 
+target_recognition:
+  # Cosine similarity threshold (0-1). Higher means stricter matching.
+  # SFace recommends 0.363 for standard face verification.
+  similarity_threshold: 0.364
+
+  # Minimum time (seconds) between saving alerts for the SAME target person
+  alert_cooldown: 5
+
 face_detection:
   # Enable/disable face detection entirely
   enabled: true

@@ -118,7 +118,57 @@ def api_face():
         "enabled": detector.is_face_detection_enabled(),
         "privacy_blur": detector.is_privacy_blur_enabled(),
         "backend": detector.get_face_backend(),
+        "targets": detector.get_target_names(),
     })
+
+@app.route("/api/target_faces", methods=["GET", "POST"])
+def api_target_faces():
+    """Manage target faces for recognition."""
+    if request.method == "GET":
+        return jsonify(detector.get_target_names())
+        
+    if request.method == "POST":
+        if "file" not in request.files or "name" not in request.form:
+            return jsonify({"error": "Missing file or name"}), 400
+            
+        file = request.files["file"]
+        name = request.form["name"].strip()
+        
+        if file.filename == "" or not name:
+            return jsonify({"error": "Invalid file or name"}), 400
+            
+        # secure the name to use as filename
+        safe_name = secure_filename(name)
+        if not safe_name:
+            return jsonify({"error": "Invalid name"}), 400
+            
+        ext = Path(file.filename).suffix.lower()
+        if ext not in [".jpg", ".jpeg", ".png"]:
+            return jsonify({"error": "Only JPG/PNG allowed"}), 400
+            
+        os.makedirs("target_faces", exist_ok=True)
+        filepath = os.path.join("target_faces", f"{safe_name}{ext}")
+        file.save(filepath)
+        
+        detector.reload_target_faces()
+        return jsonify({"success": True, "name": safe_name, "targets": detector.get_target_names()})
+
+@app.route("/api/target_faces/<name>", methods=["DELETE"])
+def api_delete_target_face(name):
+    """Delete a target face."""
+    safe_name = secure_filename(name)
+    deleted = False
+    
+    if os.path.exists("target_faces"):
+        for f in os.listdir("target_faces"):
+            if Path(f).stem == safe_name:
+                os.remove(os.path.join("target_faces", f))
+                deleted = True
+                
+    if deleted:
+        detector.reload_target_faces()
+        return jsonify({"success": True, "targets": detector.get_target_names()})
+    return jsonify({"error": "Not found"}), 404
 
 @app.route("/api/cameras")
 def api_cameras():

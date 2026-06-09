@@ -313,6 +313,18 @@
       color: var(--accent-green); font-family: 'JetBrains Mono', monospace;
     }
 
+    .target-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(0,255,0,0.1); border: 1px solid rgba(0,255,0,0.3);
+      color: var(--text-main); padding: 4px 10px; border-radius: 16px;
+      font-size: 0.75rem;
+    }
+    .target-pill button {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 14px; margin-left: 2px; padding: 0;
+    }
+    .target-pill button:hover { color: var(--accent-red); }
+
     /* ── Side Panel ─────────────────────────────────────────── */
     .side-panel {
       grid-column: 2;
@@ -699,6 +711,23 @@
       </div>
     </div>
 
+    <!-- Target Faces -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">&#x1F9D1;&#x200D;&#x1F91D;&#x200D;&#x1F9D1; Target Faces</div>
+      </div>
+      <div style="padding: 16px;">
+        <form id="target-upload-form" style="display:flex; gap:8px; margin-bottom:12px;">
+          <input type="text" id="target-name" placeholder="Name" required style="flex:1; width:80px; padding:6px; border:1px solid var(--border); border-radius:4px; background:var(--bg-elevated); color:var(--text-main);" />
+          <input type="file" id="target-file" accept="image/*" required style="max-width: 130px; font-size: 11px;" />
+          <button type="submit" class="btn btn-primary" style="padding:6px 12px; font-size: 12px;">Add</button>
+        </form>
+        <div id="target-list" style="display:flex; flex-wrap:wrap; gap:8px;">
+          <!-- Target pills will be injected here -->
+        </div>
+      </div>
+    </div>
+
     <!-- Source Switcher -->
     <div class="card">
       <div class="card-header">
@@ -894,6 +923,16 @@
           flashThreat();
         }
         lastThreatCount = data.threats_detected || 0;
+
+        // Threat overlay flash
+        if (faceToggle) faceToggle.checked = !!data.face_enabled;
+        if (blurToggle) blurToggle.checked = !!data.privacy_blur;
+        if (faceBadge) faceBadge.textContent = data.face_backend || 'none';
+        
+        // Target Faces list sync
+        if (data.targets !== undefined) {
+          renderTargets(data.targets);
+        }
       })
       .catch(() => {});
   }
@@ -992,7 +1031,62 @@
     setTimeout(() => toast.remove(), 5000);
   }
 
-  // ── Source Switcher ──────────────────────────────────────────
+  // ── Target Faces handlers ────────────────────────────────
+  const targetUploadForm = document.getElementById('target-upload-form');
+  if (targetUploadForm) {
+    targetUploadForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('target-file');
+      const nameInput = document.getElementById('target-name');
+      
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('name', nameInput.value);
+      
+      const btn = targetUploadForm.querySelector('button');
+      const origText = btn.textContent;
+      btn.textContent = '...';
+      
+      fetch('/api/target_faces', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            renderTargets(data.targets);
+            fileInput.value = '';
+            nameInput.value = '';
+          } else {
+            alert(data.error || 'Upload failed');
+          }
+        })
+        .finally(() => btn.textContent = origText);
+    });
+  }
+
+  window.deleteTarget = function(name) {
+    if (!confirm(`Remove target face '${name}'?`)) return;
+    fetch(`/api/target_faces/${name}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) renderTargets(data.targets);
+      });
+  };
+
+  function renderTargets(targets) {
+    const list = document.getElementById('target-list');
+    if (!list) return;
+    if (!targets || targets.length === 0) {
+      list.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted)">No target faces loaded.</span>';
+      return;
+    }
+    list.innerHTML = targets.map(name => `
+      <div class="target-pill">
+        ${name}
+        <button onclick="deleteTarget('${name}')" title="Remove">&times;</button>
+      </div>
+    `).join('');
+  }
+
+  // ── Source Switcher Logic ──────────────────────────────────────────
   let currentSource = '';
 
   function switchTab(name) {
