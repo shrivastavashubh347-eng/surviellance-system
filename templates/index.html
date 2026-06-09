@@ -446,6 +446,76 @@
     .toast-title { font-weight: 700; font-size: 0.9rem; color: var(--accent-red); }
     .toast-body  { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
 
+    /* ── Source Switcher ──────────────────────────────────────── */
+    .source-section { padding: 0 20px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .source-tabs { display: flex; gap: 4px; }
+    .source-tab {
+      flex: 1; padding: 7px 4px; border: 1px solid var(--border);
+      background: var(--bg-surface); border-radius: var(--radius-sm);
+      font-size: 0.72rem; font-weight: 600; cursor: pointer; color: var(--text-secondary);
+      transition: all 0.2s; text-align: center;
+    }
+    .source-tab.active { background: rgba(59,158,255,0.15); border-color: var(--accent-blue); color: var(--accent-blue); }
+    .source-tab:hover:not(.active) { border-color: var(--border-glow); color: var(--text-primary); }
+    .tab-panel { display: none; flex-direction: column; gap: 8px; }
+    .tab-panel.active { display: flex; }
+    .source-input {
+      width: 100%; padding: 8px 10px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+      outline: none; transition: border-color 0.2s;
+    }
+    .source-input:focus { border-color: var(--accent-blue); }
+    .btn-sm {
+      padding: 7px 14px; border: none; border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-apply { background: var(--accent-blue); color: #fff; }
+    .btn-apply:hover { filter: brightness(1.15); }
+    .btn-scan  { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-scan:hover { border-color: var(--border-glow); color: var(--text-primary); }
+    .camera-list { display: flex; flex-direction: column; gap: 5px; }
+    .camera-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; background: var(--bg-surface);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+    }
+    .camera-item.available { border-color: rgba(34,211,160,0.3); }
+    .camera-item.active-src { border-color: var(--accent-blue); background: rgba(59,158,255,0.08); }
+    .camera-dot { width:8px; height:8px; border-radius:50%; background: var(--text-muted); flex-shrink:0; }
+    .camera-dot.on { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+    .video-list { display: flex; flex-direction: column; gap: 5px; max-height: 160px; overflow-y: auto; }
+    .video-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; background: var(--bg-surface);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+    }
+    .video-item:hover { border-color: var(--accent-blue); background: rgba(59,158,255,0.06); }
+    .video-item.playing { border-color: var(--accent-green); background: rgba(34,211,160,0.06); }
+    .video-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .video-size { color: var(--text-muted); font-size:0.7rem; flex-shrink:0; margin-left:6px; }
+    .upload-zone {
+      border: 2px dashed var(--border); border-radius: var(--radius-sm);
+      padding: 16px; text-align: center; cursor: pointer;
+      transition: all 0.2s; color: var(--text-muted); font-size: 0.8rem;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--accent-blue); color: var(--accent-blue); }
+    .upload-progress {
+      height: 4px; background: var(--bg-elevated); border-radius: 2px;
+      overflow: hidden; display: none;
+    }
+    .upload-bar { height:100%; background: var(--accent-blue); width:0; transition: width 0.3s; }
+    .source-current {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      color: var(--accent-cyan); background: rgba(0,212,255,0.08);
+      padding: 4px 10px; border-radius: 4px; word-break: break-all;
+    }
+    .err-msg { font-size: 0.72rem; color: var(--accent-red); padding: 4px 0; }
+
     /* ── Debug Panel ─────────────────────────────────────────── */
     .debug-card { grid-column: 1; }
     .debug-list {
@@ -565,6 +635,84 @@
           <span class="config-key">Alert Cooldown</span>
           <span class="config-val" id="cfg-cooldown">—</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Source Switcher -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📡 Camera / Video Source</div>
+        <span id="src-badge" class="config-val" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+      </div>
+      <div class="source-section">
+
+        <!-- Tabs -->
+        <div class="source-tabs">
+          <div class="source-tab active" id="tab-usb"   onclick="switchTab('usb')">📷 USB/Cam</div>
+          <div class="source-tab"        id="tab-rtsp"  onclick="switchTab('rtsp')">🌐 IP/RTSP</div>
+          <div class="source-tab"        id="tab-file"  onclick="switchTab('file')">🎬 Video</div>
+          <div class="source-tab"        id="tab-upload" onclick="switchTab('upload')">⬆ Upload</div>
+        </div>
+
+        <!-- USB/Camera Tab -->
+        <div class="tab-panel active" id="panel-usb">
+          <div style="font-size:0.72rem;color:var(--text-muted)">
+            USB phone camera appears as index 1 or 2. Enable on Android: <br>
+            <b>Settings → Developer Options → Default USB → Webcam</b><br>
+            Or install <b>DroidCam</b> app + PC client.
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn-sm btn-scan" onclick="scanCameras()">🔍 Scan</button>
+            <span style="font-size:0.72rem;color:var(--text-muted)" id="scan-status">Click Scan to detect cameras</span>
+          </div>
+          <div class="camera-list" id="camera-list"></div>
+        </div>
+
+        <!-- RTSP Tab -->
+        <div class="tab-panel" id="panel-rtsp">
+          <div style="font-size:0.72rem;color:var(--text-muted)">
+            Use <b>IP Webcam</b> app (Android) or <b>EpocCam</b> (iOS) to stream over Wi-Fi.
+          </div>
+          <input class="source-input" id="rtsp-url" type="text"
+                 placeholder="http://192.168.1.XX:8080/video  or  rtsp://..." />
+          <button class="btn-sm btn-apply" onclick="applySource(document.getElementById('rtsp-url').value)">
+            ▶ Connect
+          </button>
+        </div>
+
+        <!-- Video File Tab -->
+        <div class="tab-panel" id="panel-file">
+          <div style="font-size:0.72rem;color:var(--text-muted)">
+            Transfer video files from your phone via USB, place in the <b>/videos</b> folder,
+            then select below.
+          </div>
+          <button class="btn-sm btn-scan" onclick="refreshVideos()">🔄 Refresh list</button>
+          <div class="video-list" id="video-list">
+            <div style="color:var(--text-muted);font-size:0.75rem;padding:8px">No videos found — click Refresh</div>
+          </div>
+        </div>
+
+        <!-- Upload Tab -->
+        <div class="tab-panel" id="panel-upload">
+          <div style="font-size:0.72rem;color:var(--text-muted)">
+            Upload a video directly from your phone via the browser (when connected to same Wi-Fi).
+          </div>
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" accept=".mp4,.avi,.mov,.mkv,.m4v,.wmv" style="display:none"
+                   onchange="uploadFile(this.files[0])" />
+            📁 Click to select video file<br>
+            <span style="font-size:0.7rem">(mp4, avi, mov, mkv supported)</span>
+          </div>
+          <div class="upload-progress" id="upload-progress"><div class="upload-bar" id="upload-bar"></div></div>
+          <div id="upload-status" style="font-size:0.72rem;color:var(--text-muted)"></div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;cursor:pointer">
+            <input type="checkbox" id="auto-analyze" checked />
+            Auto-start analysis after upload
+          </label>
+        </div>
+
+        <!-- Error / current source -->
+        <div id="src-error" class="err-msg" style="display:none"></div>
       </div>
     </div>
 
@@ -762,6 +910,173 @@
     setTimeout(() => toast.remove(), 5000);
   }
 
+  // ── Source Switcher ──────────────────────────────────────────
+  let currentSource = '';
+
+  function switchTab(name) {
+    ['usb','rtsp','file','upload'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('active', t === name);
+      document.getElementById('panel-' + t).classList.toggle('active', t === name);
+    });
+    if (name === 'file') refreshVideos();
+  }
+
+  function applySource(src) {
+    if (!src) return;
+    fetch('/api/source', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source: src}),
+    })
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('src-error').style.display = 'none';
+      pollStatus();
+    })
+    .catch(() => {});
+  }
+
+  function scanCameras() {
+    const status = document.getElementById('scan-status');
+    const list = document.getElementById('camera-list');
+    status.textContent = 'Scanning...';
+    list.innerHTML = '';
+    fetch('/api/cameras')
+      .then(r => r.json())
+      .then(cameras => {
+        status.textContent = cameras.filter(c => c.available).length + ' camera(s) found';
+        list.innerHTML = '';
+        cameras.forEach(c => {
+          const div = document.createElement('div');
+          div.className = 'camera-item' + (c.available ? ' available' : '') +
+                          (String(c.index) === currentSource ? ' active-src' : '');
+          div.innerHTML = `
+            <div class="camera-dot ${c.available ? 'on' : ''}"></div>
+            <span style="flex:1;margin:0 8px;font-size:0.75rem">${c.label}</span>
+            ${c.available ? `<button class="btn-sm btn-apply" onclick="applySource('${c.index}')">Use</button>` : ''}
+          `;
+          list.appendChild(div);
+        });
+      })
+      .catch(() => { status.textContent = 'Scan failed'; });
+  }
+
+  function refreshVideos() {
+    fetch('/api/videos')
+      .then(r => r.json())
+      .then(files => {
+        const list = document.getElementById('video-list');
+        if (!files.length) {
+          list.innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;padding:8px">No videos in /videos folder</div>';
+          return;
+        }
+        list.innerHTML = '';
+        files.forEach(f => {
+          const div = document.createElement('div');
+          div.className = 'video-item' + (f.path === currentSource ? ' playing' : '');
+          div.innerHTML = `<span class="video-name">${f.path === currentSource ? '▶ ' : ''}${f.name}</span><span class="video-size">${f.size_mb} MB</span>`;
+          div.onclick = () => applySource(f.path);
+          list.appendChild(div);
+        });
+      })
+      .catch(() => {});
+  }
+
+  function uploadFile(file) {
+    if (!file) return;
+    const status = document.getElementById('upload-status');
+    const bar = document.getElementById('upload-bar');
+    const progress = document.getElementById('upload-progress');
+    const autoAnalyze = document.getElementById('auto-analyze').checked;
+    const zone = document.getElementById('upload-zone');
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('auto_analyze', autoAnalyze ? 'true' : 'false');
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+
+    progress.style.display = 'block';
+    zone.style.pointerEvents = 'none';
+    status.textContent = 'Uploading...';
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round(e.loaded / e.total * 100);
+        bar.style.width = pct + '%';
+        status.textContent = `Uploading... ${pct}%`;
+      }
+    };
+    xhr.onload = () => {
+      zone.style.pointerEvents = '';
+      progress.style.display = 'none';
+      bar.style.width = '0';
+      const data = JSON.parse(xhr.responseText);
+      if (xhr.status === 200) {
+        status.textContent = `Saved: ${data.filename} (${data.size_mb} MB)${data.auto_analyze ? ' — Analysis started!' : ''}`;
+        refreshVideos();
+        if (data.auto_analyze) switchTab('file');
+      } else {
+        status.textContent = 'Error: ' + (data.error || 'Upload failed');
+      }
+    };
+    xhr.onerror = () => { status.textContent = 'Upload failed.'; zone.style.pointerEvents = ''; };
+    xhr.send(fd);
+  }
+
+  // Drag-and-drop on upload zone
+  const uploadZone = document.getElementById('upload-zone');
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault(); uploadZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+  });
+
+  // Update source badge + error from status poll
+  const _origPollStatus = pollStatus;
+  // Patch pollStatus to also update source info
+  function patchedPollStatus() {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(data => {
+        const badge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+        if (data.is_running) {
+          badge.className = 'status-badge online';
+          statusText.textContent = 'Live';
+        } else {
+          badge.className = 'status-badge offline';
+          statusText.textContent = 'Offline';
+        }
+        document.getElementById('stat-threats').textContent     = data.threats_detected || 0;
+        document.getElementById('stat-frames').textContent      = (data.frames_processed || 0).toLocaleString();
+        document.getElementById('stat-alerts-saved').textContent = data.alerts_saved || 0;
+        const sec = data.uptime_seconds || 0;
+        const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+        document.getElementById('stat-uptime').textContent = h + ':' + m;
+        if (data.threats_detected > lastThreatCount) flashThreat();
+        lastThreatCount = data.threats_detected || 0;
+
+        // Source info
+        currentSource = data.current_source || '';
+        const srcBadge = document.getElementById('src-badge');
+        if (srcBadge) srcBadge.textContent = data.source_label || currentSource || '—';
+        const errEl = document.getElementById('src-error');
+        if (errEl) {
+          if (data.connection_error) {
+            errEl.textContent = '⚠ ' + data.connection_error;
+            errEl.style.display = 'block';
+          } else {
+            errEl.style.display = 'none';
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
   // ── Debug panel ────────────────────────────────────────────
   function pollDetections() {
     fetch('/api/detections')
@@ -790,12 +1105,15 @@
   }
 
   // ── Init ───────────────────────────────────────────────────
-  pollStatus();
+  patchedPollStatus();
   pollAlerts();
   pollDetections();
-  setInterval(pollStatus, 2000);
+  setInterval(patchedPollStatus, 2000);
   setInterval(pollAlerts, 3000);
   setInterval(pollDetections, 1500);
+
+  // Initial camera scan on load
+  scanCameras();
 </script>
 
 </body>

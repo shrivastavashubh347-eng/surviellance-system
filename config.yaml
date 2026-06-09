@@ -3,15 +3,42 @@
 # ─────────────────────────────────────────────
 
 camera:
-  # USB camera index (0 = default first camera).
-  # Change to a RTSP URL string for IP cameras, e.g.:
-  #   source: "rtsp://user:pass@192.168.1.100:554/stream"
+  # ── Source Options ──────────────────────────────────────────
+  #
+  # 1. Built-in / USB webcam (integer index):
+  #      source: 0        ← first webcam
+  #      source: 1        ← second webcam (often where phone USB appears)
+  #      source: 2        ← third device (DroidCam virtual camera, etc.)
+  #
+  # 2. Android phone via USB (DroidCam):
+  #      Install DroidCam app on phone + DroidCam PC client
+  #      Then use source: 1  (or whichever index DroidCam registers as)
+  #
+  # 3. Android 14+ native USB Webcam (no app needed):
+  #      Enable: Settings → Developer Options → Default USB config → Webcam
+  #      Then use source: 1
+  #
+  # 4. Phone camera over Wi-Fi / RTSP (IP Webcam app):
+  #      source: "http://192.168.1.XX:8080/video"
+  #      source: "rtsp://192.168.1.XX:8080/h264_ulaw.sdp"
+  #
+  # 5. Analyze a local video file (transferred from phone via USB):
+  #      source: "videos/clip.mp4"
+  #      (place file inside the project's /videos folder)
+  #
   source: 0
+
+  # Auto-loop video files when they reach the end (ignored for live cameras)
+  loop_video: true
+
+  # Resolution hint (0 = camera default). Only works for live cameras.
+  width: 0
+  height: 0
 
 detection:
   # YOLOv8 model weights to use.
   # yolov8n.pt = fastest but misses thin objects like knives
-  # yolov8s.pt = much better accuracy, still real-time on CPU
+  # yolov8s.pt = much better accuracy, still real-time on CPU  ← recommended
   # yolov8m.pt = best accuracy (requires GPU for real-time)
   model: "yolov8s.pt"
 
@@ -34,6 +61,10 @@ detection:
 alerts:
   # Folder where timestamped screenshots are saved (relative to project root)
   output_dir: "alerts"
+
+videos:
+  # Folder where transferred phone videos are stored for analysis
+  input_dir: "videos"
 
 server:
   host: "127.0.0.1"
