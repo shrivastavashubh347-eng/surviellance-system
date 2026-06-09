@@ -58,6 +58,29 @@ detection:
   # Minimum time (seconds) between saving alerts for the same class
   alert_cooldown: 5
 
+face_detection:
+  # Enable/disable face detection entirely
+  enabled: true
+
+  # Detection confidence threshold (0-1)
+  min_confidence: 0.6
+
+  # Run face detection every N frames (1=every frame, 2=every other, etc.)
+  # Increase to reduce CPU load if the system feels slow
+  run_every_n_frames: 2
+
+  # Draw blue bounding boxes around detected faces
+  draw_boxes: true
+
+  # Blur detected faces for privacy (GDPR mode)
+  privacy_blur: false
+
+  # Fire an alert when a face appears in the SAME frame as a threat object
+  alert_on_face_with_threat: true
+
+  # Save a screenshot when face+threat detected together
+  save_combined_alert: true
+
 alerts:
   # Folder where timestamped screenshots are saved (relative to project root)
   output_dir: "alerts"

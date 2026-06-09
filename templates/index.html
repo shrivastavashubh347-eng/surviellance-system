@@ -275,9 +275,42 @@
     .stat-card.frames  .stat-value { color: var(--accent-blue); }
     .stat-card.alerts  .stat-value { color: var(--accent-amber); }
     .stat-card.uptime  .stat-value { color: var(--accent-green); }
+    .stat-card.faces   .stat-value { color: #FFB400; }
 
     .stat-trend {
       font-size: 0.72rem; color: var(--text-muted);
+    }
+
+    /* Toggle button */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { display: flex; align-items: center; gap: 8px; }
+    .toggle-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+    .switch {
+      position: relative; display: inline-block;
+      width: 40px; height: 22px; flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--bg-elevated); border-radius: 22px;
+      transition: 0.3s; border: 1px solid var(--border);
+    }
+    .slider::before {
+      content: ''; position: absolute;
+      width: 16px; height: 16px; left: 2px; bottom: 2px;
+      background: var(--text-muted); border-radius: 50%; transition: 0.3s;
+    }
+    input:checked + .slider { background: rgba(59,158,255,0.3); border-color: var(--accent-blue); }
+    input:checked + .slider::before { transform: translateX(18px); background: var(--accent-blue); }
+    .face-backend-badge {
+      font-size: 0.7rem; padding: 2px 8px; border-radius: 99px;
+      background: rgba(34,211,160,0.12); border: 1px solid rgba(34,211,160,0.3);
+      color: var(--accent-green); font-family: 'JetBrains Mono', monospace;
     }
 
     /* ── Side Panel ─────────────────────────────────────────── */
@@ -638,6 +671,34 @@
       </div>
     </div>
 
+    <!-- Face Detection Controls -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">&#x1F9D1; Face Detection</div>
+        <span id="face-backend-badge" class="face-backend-badge">loading...</span>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">&#x1F7E0; Enable Face Detection</div>
+          <div class="toggle-desc">Draws blue boxes around detected faces</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-face" checked onchange="toggleFace(this.checked)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">&#x1F512; Privacy Blur</div>
+          <div class="toggle-desc">Pixelates all detected faces (GDPR mode)</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-blur" onchange="toggleBlur(this.checked)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
     <!-- Source Switcher -->
     <div class="card">
       <div class="card-header">
@@ -749,6 +810,11 @@
       <div class="stat-label">💾 Alerts Saved</div>
       <div class="stat-value" id="stat-alerts-saved">0</div>
       <div class="stat-trend">screenshots on disk</div>
+    </div>
+    <div class="stat-card faces">
+      <div class="stat-label">🧑 Faces Detected</div>
+      <div class="stat-value" id="stat-faces">0</div>
+      <div class="stat-trend">total face sightings</div>
     </div>
     <div class="stat-card uptime">
       <div class="stat-label">⏱ Uptime</div>
@@ -887,6 +953,22 @@
     .then(r => r.json())
     .then(() => pollStatus())
     .catch(() => {});
+  }
+
+  function toggleFace(enabled) {
+    fetch('/api/face', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enabled }),
+    }).then(() => patchedPollStatus());
+  }
+
+  function toggleBlur(enabled) {
+    fetch('/api/face', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ privacy_blur: enabled }),
+    }).then(() => patchedPollStatus());
   }
 
   function flashThreat() {
@@ -1035,8 +1117,6 @@
   });
 
   // Update source badge + error from status poll
-  const _origPollStatus = pollStatus;
-  // Patch pollStatus to also update source info
   function patchedPollStatus() {
     fetch('/api/status')
       .then(r => r.json())

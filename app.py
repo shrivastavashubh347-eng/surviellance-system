@@ -74,6 +74,9 @@ def api_status():
     stats["current_source"] = detector.get_current_source()
     stats["source_label"] = detector.get_source_label()
     stats["connection_error"] = detector.get_connection_error()
+    stats["face_enabled"] = detector.is_face_detection_enabled()
+    stats["face_backend"] = detector.get_face_backend()
+    stats["privacy_blur"] = detector.is_privacy_blur_enabled()
     return jsonify(stats)
 
 
@@ -95,6 +98,27 @@ def api_alerts():
 def api_detections():
     return jsonify(detector.get_raw_detections())
 
+
+@app.route("/api/face", methods=["GET", "POST"])
+def api_face():
+    """
+    GET  /api/face         -> current face detection state
+    POST /api/face         -> toggle settings
+      Body: { "enabled": true/false }       # toggle face detection
+            { "privacy_blur": true/false }  # toggle privacy blur
+    """
+    if request.method == "POST":
+        data = request.json or {}
+        if "enabled" in data:
+            detector.set_face_detection(bool(data["enabled"]))
+        if "privacy_blur" in data:
+            detector.set_privacy_blur(bool(data["privacy_blur"]))
+
+    return jsonify({
+        "enabled": detector.is_face_detection_enabled(),
+        "privacy_blur": detector.is_privacy_blur_enabled(),
+        "backend": detector.get_face_backend(),
+    })
 
 @app.route("/api/cameras")
 def api_cameras():

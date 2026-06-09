@@ -29,6 +29,8 @@ import numpy as np
 import yaml
 from ultralytics import YOLO
 
+from face_engine import FaceEngine
+
 # ──────────────────────────────────────────────────────────────
 # Desktop notification helper (cross-platform best-effort)
 # ──────────────────────────────────────────────────────────────
@@ -135,6 +137,14 @@ class ThreatDetector:
         # Raw detection log for debug panel
         self._raw_detections: list[dict] = []
 
+        # Face detection engine
+        self._face_engine = FaceEngine(self.cfg)
+        self._face_frame_skip = int(self.cfg.get("face_detection", {}).get("run_every_n_frames", 2))
+        self._face_frame_counter = 0
+        self._last_faces: list[dict] = []   # cached result from last face-detection frame
+        self._stats["faces_detected"] = 0
+        self._last_combined_alert: float = 0.0
+
         logging.info(
             "Threat detector ready. Watching for: %s (conf >= %.2f)",
             self.threat_classes, self.conf_threshold,
@@ -219,6 +229,25 @@ class ThreatDetector:
     def get_raw_detections(self) -> list[dict]:
         with self._lock:
             return list(self._raw_detections)
+
+    def set_face_detection(self, enabled: bool) -> None:
+        """Toggle face detection at runtime."""
+        self._face_engine.set_enabled(enabled)
+        logging.info("Face detection %s", "enabled" if enabled else "disabled")
+
+    def set_privacy_blur(self, blur: bool) -> None:
+        """Toggle privacy blur at runtime."""
+        self._face_engine.set_privacy_blur(blur)
+        logging.info("Privacy blur %s", "enabled" if blur else "disabled")
+
+    def get_face_backend(self) -> str:
+        return self._face_engine.get_backend()
+
+    def is_face_detection_enabled(self) -> bool:
+        return self._face_engine.enabled
+
+    def is_privacy_blur_enabled(self) -> bool:
+        return self._face_engine.privacy_blur
 
     def list_video_files(self) -> list[dict]:
         """Return video files available in the /videos folder."""
@@ -383,7 +412,34 @@ class ThreatDetector:
                     self._raw_detections.insert(0, raw_record)
                     self._raw_detections = self._raw_detections[:50]
 
-        # HUD overlay
+        # ── Face detection pass ───────────────────────────────
+        self._face_frame_counter += 1
+        run_face = (self._face_frame_counter % max(1, self._face_frame_skip) == 0)
+        if run_face:
+            annotated, faces = self._face_engine.detect_and_draw(
+                annotated, threats_present=bool(threats_in_frame)
+            )
+            self._last_faces = faces
+            if faces:
+                with self._lock:
+                    self._stats["faces_detected"] = self._stats.get("faces_detected", 0) + len(faces)
+        else:
+            # Re-draw last known face boxes without re-running detection
+            if self._last_faces and self._face_engine.draw_boxes and self._face_engine.enabled:
+                for face in self._last_faces:
+                    col = (0, 0, 255) if threats_in_frame else self._face_engine.BOX_COLOUR
+                    cv2.rectangle(annotated, (face["x1"], face["y1"]),
+                                  (face["x2"], face["y2"]), col, 2)
+
+        # ── Face count HUD ────────────────────────────────────
+        n_faces = len(self._last_faces)
+        if n_faces > 0 and self._face_engine.enabled:
+            face_txt = f"Faces: {n_faces}" + (" [BLUR]" if self._face_engine.privacy_blur else "")
+            cv2.putText(annotated, face_txt,
+                        (annotated.shape[1] - 180, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 180, 0), 2)
+
+        # ── HUD overlay ───────────────────────────────────────
         ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
         src_label = f"SRC: {str(self._current_source)[:30]}"
         cv2.putText(annotated, ts, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (200, 200, 200), 2)
@@ -400,6 +456,15 @@ class ThreatDetector:
             if now - last >= self.alert_cooldown:
                 self._last_alert_time[cls] = now
                 self._save_alert(annotated, threat)
+
+        # ── Combined face + threat alert ──────────────────────
+        face_cfg = self.cfg.get("face_detection", {})
+        if (threats_in_frame and self._last_faces
+                and face_cfg.get("alert_on_face_with_threat", True)
+                and face_cfg.get("save_combined_alert", True)
+                and now - self._last_combined_alert >= self.alert_cooldown):
+            self._last_combined_alert = now
+            self._save_combined_alert(annotated, threats_in_frame, self._last_faces)
 
         return annotated
 
@@ -432,6 +497,38 @@ class ThreatDetector:
             args=(
                 f"Threat Detected: {threat['class'].upper()}",
                 f"Confidence: {threat['confidence']:.0%}\nSaved: {filename}",
+            ),
+            daemon=True,
+        ).start()
+
+    def _save_combined_alert(self, frame: np.ndarray, threats: list[dict], faces: list[dict]) -> None:
+        """Save a combined screenshot when a face and weapon appear together."""
+        ts_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        cls_names = "+".join(sorted({t["class"] for t in threats}))
+        filename = f"alert_COMBINED_{cls_names}_{len(faces)}face_{ts_str}.jpg"
+        filepath = self.alerts_dir / filename
+        cv2.imwrite(str(filepath), frame)
+
+        record = {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "class": f"COMBINED ({cls_names} + {len(faces)} face(s))",
+            "confidence": round(max(t["confidence"] for t in threats), 3),
+            "screenshot": filename,
+        }
+        with self._lock:
+            self._alert_log.insert(0, record)
+            self._stats["alerts_saved"] += 1
+
+        with open(self._csv_path, "a", newline="") as f:
+            csv.DictWriter(f, fieldnames=list(record.keys())).writerow(record)
+
+        logging.info("Combined alert saved: %s", filename)
+
+        threading.Thread(
+            target=_notify,
+            args=(
+                "ARMED PERSON DETECTED",
+                f"Weapon + face in frame!\n{cls_names} detected with {len(faces)} face(s)",
             ),
             daemon=True,
         ).start()
