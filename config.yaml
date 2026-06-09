@@ -1,30 +1,30 @@
 # ─────────────────────────────────────────────
-#  Threat Detection System – Configuration File
+#  Threat Detection System - Configuration File
 # ─────────────────────────────────────────────
 
 camera:
-  # ── Source Options ──────────────────────────────────────────
+  # Source options:
   #
   # 1. Built-in / USB webcam (integer index):
-  #      source: 0        ← first webcam
-  #      source: 1        ← second webcam (often where phone USB appears)
-  #      source: 2        ← third device (DroidCam virtual camera, etc.)
+  #    source: 0        # first webcam
+  #    source: 1        # second webcam (phone USB often appears here)
+  #    source: 2        # third device (DroidCam virtual camera, etc.)
   #
   # 2. Android phone via USB (DroidCam):
-  #      Install DroidCam app on phone + DroidCam PC client
-  #      Then use source: 1  (or whichever index DroidCam registers as)
+  #    Install DroidCam app on phone + DroidCam PC client
+  #    Then set: source: 1  (or whichever index DroidCam registers as)
   #
   # 3. Android 14+ native USB Webcam (no app needed):
-  #      Enable: Settings → Developer Options → Default USB config → Webcam
-  #      Then use source: 1
+  #    Enable: Settings -> Developer Options -> Default USB config -> Webcam
+  #    Then set: source: 1
   #
-  # 4. Phone camera over Wi-Fi / RTSP (IP Webcam app):
-  #      source: "http://192.168.1.XX:8080/video"
-  #      source: "rtsp://192.168.1.XX:8080/h264_ulaw.sdp"
+  # 4. Phone camera over Wi-Fi (IP Webcam app):
+  #    source: "http://192.168.1.XX:8080/video"
+  #    source: "rtsp://192.168.1.XX:8080/h264_ulaw.sdp"
   #
   # 5. Analyze a local video file (transferred from phone via USB):
-  #      source: "videos/clip.mp4"
-  #      (place file inside the project's /videos folder)
+  #    source: "videos/clip.mp4"
+  #    (place file inside the project /videos folder)
   #
   source: 0
 
@@ -38,7 +38,7 @@ camera:
 detection:
   # YOLOv8 model weights to use.
   # yolov8n.pt = fastest but misses thin objects like knives
-  # yolov8s.pt = much better accuracy, still real-time on CPU  ← recommended
+  # yolov8s.pt = much better accuracy, still real-time on CPU (recommended)
   # yolov8m.pt = best accuracy (requires GPU for real-time)
   model: "yolov8s.pt"
 
@@ -48,10 +48,10 @@ detection:
     - "scissors"
 
   # Minimum confidence to count as a detection (0-1)
-  # Lowered to 0.25 — knives are thin objects; yolov8 scores them lower
+  # Lowered to 0.25 - knives are thin objects and yolov8 scores them lower
   confidence_threshold: 0.25
 
-  # Inference image size — larger = better for small/thin objects
+  # Inference image size - larger = better for small/thin objects
   # 640 is default; 960 helps catch knives at a distance (slower)
   inference_imgsz: 640
 
